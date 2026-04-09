@@ -178,7 +178,7 @@ st.markdown("""
 # ─────────────────────────────────────────
 @st.cache_data
 def load_all_data():
-    base_path      = r'D:\Project\산업용관리대쉬보드\data'
+    base_path      = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
     sale_file      = os.path.join(base_path, '산업용_통합데이터_정리완료.csv')
     interview_file = os.path.join(base_path, '면담내용.xlsx')
 

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import json; f=open\\('d:/Project/산업용관리대쉬보드/notebooks/판매량데이터정리.ipynb', encoding='utf-8'\\); data=json.load\\(f\\); f.close\\(\\); print\\(json.dumps\\(data['cells'][0]['source'], ensure_ascii=False\\)\\)\")",
+      "Bash(python -c ':*)",
+      "Bash(python -)"
+    ]
+  }
+}
