@@ -393,6 +393,119 @@ if load_ok:
 
 
         # ══════════════════════════════════════
+        # SECTION 1.5: 사용계약정보
+        # ══════════════════════════════════════
+        section_header("📄", "사용계약정보")
+
+        # 사용계약번호 컬럼은 sale_df 또는 psm_raw 중 어디에 있을지 알 수 없으므로
+        # 두 데이터소스를 순서대로 탐색해서 존재하는 쪽을 사용
+        contract_col = None
+        contract_source_df = None
+
+        for col_name in ['사용계약번호', '계약번호']:
+            if col_name in cust_sale.columns:
+                contract_col = col_name
+                contract_source_df = cust_sale
+                break
+
+        cust_psm_for_contract = pd.DataFrame()
+        if contract_col is None and not psm_raw.empty:
+            cust_psm_for_contract = psm_raw[
+                psm_raw['고객명'].apply(clean_name)
+                .str.contains(match_key, na=False, regex=False)
+            ]
+            for col_name in ['사용계약번호', '계약번호']:
+                if col_name in cust_psm_for_contract.columns:
+                    contract_col = col_name
+                    contract_source_df = cust_psm_for_contract
+                    break
+
+        if contract_col is None:
+            st.info("사용계약번호 컬럼을 찾을 수 없습니다. (데이터에 '사용계약번호' 열이 있는지 확인해주세요)")
+        else:
+            contract_list = (
+                contract_source_df[contract_col]
+                .dropna().astype(str).str.strip()
+            )
+            contract_list = contract_list[contract_list != ''].unique().tolist()
+
+            if not contract_list:
+                st.info("등록된 사용계약번호가 없습니다.")
+            else:
+                # ── 계약번호별 주소 조회 ──
+                # 1순위: cust_sale에 도로명주소/지번주소가 있으면 그쪽에서 계약번호로 매칭
+                # 2순위: contract_source_df 자체에 주소 컬럼이 있으면 그쪽 사용
+                # 둘 다 없으면 '-'
+                sale_has_addr = (
+                    contract_col in cust_sale.columns
+                    and '도로명주소' in cust_sale.columns
+                )
+                src_has_addr = (
+                    '도로명주소' in contract_source_df.columns
+                )
+
+                def lookup_addr(contract_val):
+                    road, jibun = '-', '-'
+                    if sale_has_addr:
+                        m = cust_sale[cust_sale[contract_col].astype(str).str.strip() == contract_val]
+                        m = m.dropna(subset=['도로명주소'])
+                        if not m.empty:
+                            row0 = m.iloc[0]
+                            road  = str(row0.get('도로명주소', '-')) or '-'
+                            jibun = str(row0.get('지번주소', '-')) or '-'
+                            return road, jibun
+                    if src_has_addr:
+                        m = contract_source_df[
+                            contract_source_df[contract_col].astype(str).str.strip() == contract_val
+                        ].dropna(subset=['도로명주소'])
+                        if not m.empty:
+                            row0 = m.iloc[0]
+                            road  = str(row0.get('도로명주소', '-')) or '-'
+                            jibun = str(row0.get('지번주소', '-')) or '-'
+                    return road, jibun
+
+                table_rows = []
+                for c in contract_list:
+                    road_addr, jibun_addr = lookup_addr(c)
+                    table_rows.append((c, road_addr, jibun_addr))
+
+                rows_html = "".join(
+                    f'<tr>'
+                    f'<td style="padding:10px 14px;font-size:13px;color:#1a1a2e;'
+                    f'border-bottom:1px solid #f0f3f8;white-space:nowrap;">{html.escape(c)}</td>'
+                    f'<td style="padding:10px 14px;font-size:13px;color:#1a1a2e;'
+                    f'border-bottom:1px solid #f0f3f8;">{html.escape(road)}</td>'
+                    f'<td style="padding:10px 14px;font-size:13px;color:#1a1a2e;'
+                    f'border-bottom:1px solid #f0f3f8;">{html.escape(jibun)}</td>'
+                    f'</tr>'
+                    for c, road, jibun in table_rows
+                )
+
+                st.markdown(f"""
+                <div class="info-card" style="overflow-x:auto;">
+                    <table style="width:100%;border-collapse:collapse;">
+                        <thead>
+                            <tr>
+                                <th style="padding:10px 14px;background:#f8f9fc;color:#5f6368;
+                                    font-size:12px;font-weight:600;text-align:left;
+                                    border-bottom:1px solid #f0f3f8;white-space:nowrap;">📄 사용계약번호</th>
+                                <th style="padding:10px 14px;background:#f8f9fc;color:#5f6368;
+                                    font-size:12px;font-weight:600;text-align:left;
+                                    border-bottom:1px solid #f0f3f8;">📍 도로명주소</th>
+                                <th style="padding:10px 14px;background:#f8f9fc;color:#5f6368;
+                                    font-size:12px;font-weight:600;text-align:left;
+                                    border-bottom:1px solid #f0f3f8;">🗺️ 지번주소</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows_html}
+                        </tbody>
+                    </table>
+                </div>
+                """, unsafe_allow_html=True)
+
+
+        # ══════════════════════════════════════
         # SECTION 2: 연소기 정보
         # ══════════════════════════════════════
         section_header("🔥", "연소기 정보")
