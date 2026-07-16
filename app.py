@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import os
 import html
+from supabase_utils import load_sales_for_app
 
 # ─────────────────────────────────────────
 # 1. 페이지 설정 및 전역 스타일
@@ -13,179 +14,24 @@ st.set_page_config(
     page_icon="🏭",
 )
 
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&display=swap');
+def load_css(filename: str):
+    css_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+    with open(css_path, encoding='utf-8') as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-* { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif !important; }
-
-.main { background-color: #f4f6fb; }
-[data-testid="stSidebar"] {
-    background: #ffffff;
-    border-right: 1px solid #e5e9f0;
-}
-[data-testid="stSidebar"] .stSelectbox label { font-size: 13px; color: #5f6368; }
-
-/* ── 섹션 헤더 ── */
-.sec-hdr {
-    display: flex; align-items: center; gap: 10px;
-    margin: 1.8rem 0 1rem;
-}
-.sec-hdr-icon {
-    width: 30px; height: 30px; border-radius: 8px;
-    background: #1a73e8; display: flex; align-items: center;
-    justify-content: center; font-size: 14px; flex-shrink: 0;
-}
-.sec-hdr-text { font-size: 14px; font-weight: 700; color: #1a1a2e; }
-.sec-hdr-line { flex: 1; height: 1px; background: #e5e9f0; }
-
-/* ── 고객 타이틀 ── */
-.cust-title {
-    display: flex; align-items: center; gap: 12px;
-    padding: 1rem 0 0.2rem;
-}
-.cust-name { font-size: 24px; font-weight: 800; color: #1a1a2e; }
-.cust-badge {
-    font-size: 11px; font-weight: 700; letter-spacing: .04em;
-    background: #e8f0fe; color: #1558d0;
-    padding: 4px 12px; border-radius: 20px;
-}
-
-/* ── 기본정보 카드 ── */
-.info-card {
-    background: #ffffff; border: 1px solid #e5e9f0;
-    border-radius: 12px; overflow: hidden;
-    box-shadow: 0 1px 4px rgba(0,0,0,.04);
-}
-.info-row {
-    display: flex; align-items: stretch;
-    border-bottom: 1px solid #f0f3f8;
-}
-.info-row:last-child { border-bottom: none; }
-.info-label {
-    width: 130px; flex-shrink: 0;
-    background: #f8f9fc; color: #5f6368;
-    font-size: 12px; font-weight: 600;
-    padding: 10px 14px; display: flex; align-items: center;
-    border-right: 1px solid #f0f3f8;
-}
-.info-value {
-    flex: 1; color: #1a1a2e; font-size: 13px;
-    padding: 10px 14px; display: flex; align-items: center;
-}
-
-/* ── KPI 카드 ── */
-.kpi-row { display: flex; gap: 12px; margin-bottom: 16px; }
-.kpi-card {
-    flex: 1; background: #ffffff; border: 1px solid #e5e9f0;
-    border-radius: 12px; padding: 16px 18px;
-    position: relative; overflow: hidden;
-    box-shadow: 0 1px 4px rgba(0,0,0,.04);
-}
-.kpi-card::after {
-    content: ''; position: absolute;
-    bottom: 0; left: 0; right: 0; height: 3px;
-    background: #1a73e8;
-}
-.kpi-card.green::after { background: #0f9d58; }
-.kpi-card.amber::after { background: #f9ab00; }
-.kpi-card.red::after   { background: #ea4335; }
-.kpi-label { font-size: 11px; color: #80868b; font-weight: 600;
-    letter-spacing: .05em; text-transform: uppercase; margin-bottom: 8px; }
-.kpi-value { font-size: 22px; font-weight: 800; color: #1a1a2e; }
-.kpi-value.green { color: #0f9d58; }
-.kpi-value.red   { color: #ea4335; }
-
-/* ── PSM 카드 ── */
-.psm-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
-.psm-card {
-    background: #ffffff; border: 1px solid #e5e9f0;
-    border-radius: 12px; padding: 16px 18px;
-    position: relative; overflow: hidden;
-    box-shadow: 0 1px 4px rgba(0,0,0,.04);
-}
-.psm-card::before {
-    content: ''; position: absolute; top: 0; left: 0; right: 0;
-    height: 3px; border-radius: 12px 12px 0 0;
-}
-.psm-card.psm-blue::before   { background: #1a73e8; }
-.psm-card.psm-danger::before { background: #ea4335; }
-.psm-card.psm-warn::before   { background: #f9ab00; }
-.psm-card.psm-safe::before   { background: #0f9d58; }
-.psm-label { font-size: 11px; color: #80868b; font-weight: 600;
-    letter-spacing: .04em; margin-bottom: 8px; }
-.psm-val { font-size: 20px; font-weight: 800; color: #1a1a2e; margin-bottom: 6px; }
-.psm-badge {
-    display: inline-block; font-size: 11px; font-weight: 700;
-    padding: 3px 10px; border-radius: 20px;
-}
-.psm-badge.b-danger { background: #fce8e6; color: #c5221f; }
-.psm-badge.b-safe   { background: #e6f4ea; color: #137333; }
-.psm-badge.b-warn   { background: #fef7e0; color: #b06000; }
-
-/* ── 타임라인 ── */
-.tl-wrap { padding: 4px 0; }
-.tl-item { display: flex; gap: 14px; padding-bottom: 24px; position: relative; }
-.tl-item:not(:last-child)::before {
-    content: ''; position: absolute; left: 10px; top: 24px; bottom: 0;
-    width: 1.5px; background: #e5e9f0;
-}
-.tl-dot {
-    width: 22px; height: 22px; border-radius: 50%;
-    flex-shrink: 0; margin-top: 1px; position: relative; z-index: 1;
-}
-.tl-dot.recent { background: #e8f0fe; border: 2px solid #1a73e8; }
-.tl-dot.recent::after {
-    content: ''; position: absolute; top: 50%; left: 50%;
-    transform: translate(-50%,-50%);
-    width: 8px; height: 8px; border-radius: 50%; background: #1a73e8;
-}
-.tl-dot.old { background: #f8f9fa; border: 2px solid #dadce0; }
-.tl-dot.old::after {
-    content: ''; position: absolute; top: 50%; left: 50%;
-    transform: translate(-50%,-50%);
-    width: 8px; height: 8px; border-radius: 50%; background: #bdc1c6;
-}
-.tl-body { flex: 1; }
-.tl-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
-.tl-date { font-size: 13px; font-weight: 700; color: #3c4043; }
-.tl-manager {
-    font-size: 11.5px; color: #5f6368;
-    background: #f1f3f4; padding: 2px 10px; border-radius: 99px;
-}
-.tl-badge-new {
-    font-size: 10px; font-weight: 700; letter-spacing: .05em;
-    background: #e8f0fe; color: #1558d0; padding: 2px 8px; border-radius: 4px;
-}
-.tl-box {
-    background: #ffffff; border: 1px solid #e5e9f0;
-    border-radius: 10px; padding: 12px 16px;
-    font-size: 13.5px; color: #1a1a2e; line-height: 1.75;
-    box-shadow: 0 1px 3px rgba(0,0,0,.04);
-}
-
-/* ── 판매량 차트 라벨 ── */
-.chart-lbl { font-size: 13px; font-weight: 600; color: #5f6368; margin-bottom: 4px; }
-
-/* ── 구분선 ── */
-.divider { border: none; border-top: 1px solid #e5e9f0; margin: 0.5rem 0 1.2rem; }
-</style>
-""", unsafe_allow_html=True)
+load_css('style.css')
 
 
 # ─────────────────────────────────────────
 # 2. 데이터 로드
 # ─────────────────────────────────────────
-@st.cache_data
+@st.cache_data(ttl=600)   # 10분마다 새로고침 (Supabase에 새로 입력된 데이터 반영되도록)
 def load_all_data():
     base_path      = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
-    sale_file      = os.path.join(base_path, '산업용_통합데이터_정리완료.csv')
     interview_file = os.path.join(base_path, '면담내용.xlsx')
 
-    sale_df = pd.read_csv(sale_file, encoding='utf-8-sig')
-    sale_df['매출년월'] = pd.to_datetime(sale_df['매출년월'], errors='coerce')
-    sale_df = sale_df.dropna(subset=['매출년월']).sort_values('매출년월')
-    sale_df['고객명'] = sale_df['고객명'].astype(str).str.strip()
+    # 판매량: Supabase 로드 + 한글 컬럼 매핑까지 supabase_utils.py가 전담
+    sale_df = load_sales_for_app()
 
     interview_df = pd.read_excel(interview_file, header=0)
     interview_df.columns = [str(c).strip() for c in interview_df.columns]
