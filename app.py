@@ -84,14 +84,27 @@ def load_psm_data(sheet_url: str) -> pd.DataFrame:
 # ─────────────────────────────────────────
 # 헬퍼
 # ─────────────────────────────────────────
-def section_header(icon: str, title: str):
-    st.markdown(
-        f'<div class="sec-hdr">'
-        f'<div class="sec-hdr-icon">{icon}</div>'
-        f'<span class="sec-hdr-text">{title}</span>'
-        f'<div class="sec-hdr-line"></div></div>',
-        unsafe_allow_html=True,
-    )
+def section_header(icon: str, title: str, link_url: str = None, link_label: str = "원본 시트 열기"):
+    if link_url:
+        col_title, col_link = st.columns([5, 1])
+        with col_title:
+            st.markdown(
+                f'<div class="sec-hdr">'
+                f'<div class="sec-hdr-icon">{icon}</div>'
+                f'<span class="sec-hdr-text">{title}</span>'
+                f'<div class="sec-hdr-line"></div></div>',
+                unsafe_allow_html=True,
+            )
+        with col_link:
+            st.link_button(f"🔗 {link_label}", link_url, use_container_width=True)
+    else:
+        st.markdown(
+            f'<div class="sec-hdr">'
+            f'<div class="sec-hdr-icon">{icon}</div>'
+            f'<span class="sec-hdr-text">{title}</span>'
+            f'<div class="sec-hdr-line"></div></div>',
+            unsafe_allow_html=True,
+        )
 
 def clean_name(s: str) -> str:
     return (s.replace('주식회사', '').replace('(주)', '')
@@ -354,7 +367,7 @@ if load_ok:
         # ══════════════════════════════════════
         # SECTION 2: 연소기 정보
         # ══════════════════════════════════════
-        section_header("🔥", "연소기 정보")
+        section_header("🔥", "연소기 정보", link_url=PSM_SHEET_URL)
 
         if psm_raw.empty:
             st.warning("PSM 데이터를 불러오지 못했습니다.")
@@ -441,7 +454,7 @@ if load_ok:
         # ══════════════════════════════════════
         # SECTION 3: PSM 현황
         # ══════════════════════════════════════
-        section_header("⚖️", "PSM 현황")
+        section_header("⚖️", "PSM 현황", link_url=PSM_SHEET_URL)
 
         if psm_raw.empty:
             st.warning("PSM 데이터를 불러오지 못했습니다.")
