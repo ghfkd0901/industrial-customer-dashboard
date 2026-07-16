@@ -4,7 +4,7 @@ import numpy as np
 import plotly.graph_objects as go
 import os
 import html
-from supabase_utils import load_sales_for_app, fetch_customer_summary
+from supabase_utils import load_sales_for_app
 
 # ─────────────────────────────────────────
 # 1. 페이지 설정 및 전역 스타일
@@ -15,12 +15,177 @@ st.set_page_config(
     page_icon="🏭",
 )
 
-def load_css(filename: str):
-    css_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
-    with open(css_path, encoding='utf-8') as f:
-        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&display=swap');
 
-load_css('style.css')
+* { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif !important; }
+
+/* Streamlit 내장 아이콘(expander 화살표 등)은 전용 폰트 유지해야 글자로 안 깨짐 */
+[data-testid="stIconMaterial"],
+span[class*="material-symbols"] {
+    font-family: 'Material Symbols Rounded' !important;
+}
+
+.main { background-color: #f4f6fb; }
+[data-testid="stSidebar"] {
+    background: #ffffff;
+    border-right: 1px solid #e5e9f0;
+}
+[data-testid="stSidebar"] .stSelectbox label { font-size: 13px; color: #5f6368; }
+
+/* ── 섹션 헤더 ── */
+.sec-hdr {
+    display: flex; align-items: center; gap: 10px;
+    margin: 1.8rem 0 1rem;
+}
+.sec-hdr-icon {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: #1a73e8; display: flex; align-items: center;
+    justify-content: center; font-size: 14px; flex-shrink: 0;
+}
+.sec-hdr-text { font-size: 14px; font-weight: 700; color: #1a1a2e; }
+.sec-hdr-line { flex: 1; height: 1px; background: #e5e9f0; }
+
+/* ── 고객 타이틀 ── */
+.cust-title {
+    display: flex; align-items: center; gap: 12px;
+    padding: 1rem 0 0.2rem;
+}
+.cust-name { font-size: 24px; font-weight: 800; color: #1a1a2e; }
+.cust-badge {
+    font-size: 11px; font-weight: 700; letter-spacing: .04em;
+    background: #e8f0fe; color: #1558d0;
+    padding: 4px 12px; border-radius: 20px;
+}
+
+/* ── 기본정보 카드 ── */
+.info-card {
+    background: #ffffff; border: 1px solid #e5e9f0;
+    border-radius: 12px; overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,.04);
+}
+.info-row {
+    display: flex; align-items: stretch;
+    border-bottom: 1px solid #f0f3f8;
+}
+.info-row:last-child { border-bottom: none; }
+.info-label {
+    width: 130px; flex-shrink: 0;
+    background: #f8f9fc; color: #5f6368;
+    font-size: 12px; font-weight: 600;
+    padding: 10px 14px; display: flex; align-items: center;
+    border-right: 1px solid #f0f3f8;
+}
+.info-value {
+    flex: 1; color: #1a1a2e; font-size: 13px;
+    padding: 10px 14px; display: flex; align-items: center;
+}
+
+/* ── KPI 카드 ── */
+.kpi-row { display: flex; gap: 12px; margin-bottom: 16px; }
+.kpi-card {
+    flex: 1; background: #ffffff; border: 1px solid #e5e9f0;
+    border-radius: 12px; padding: 16px 18px;
+    position: relative; overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,.04);
+}
+.kpi-card::after {
+    content: ''; position: absolute;
+    bottom: 0; left: 0; right: 0; height: 3px;
+    background: #1a73e8;
+}
+.kpi-card.green::after { background: #0f9d58; }
+.kpi-card.amber::after { background: #f9ab00; }
+.kpi-card.red::after   { background: #ea4335; }
+.kpi-label { font-size: 11px; color: #80868b; font-weight: 600;
+    letter-spacing: .05em; text-transform: uppercase; margin-bottom: 8px; }
+.kpi-value { font-size: 22px; font-weight: 800; color: #1a1a2e; }
+.kpi-value.green { color: #0f9d58; }
+.kpi-value.red   { color: #ea4335; }
+
+/* ── PSM 카드 ── */
+.psm-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.psm-card {
+    background: #ffffff; border: 1px solid #e5e9f0;
+    border-radius: 12px; padding: 16px 18px;
+    position: relative; overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,.04);
+}
+.psm-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0;
+    height: 3px; border-radius: 12px 12px 0 0;
+}
+.psm-card.psm-blue::before   { background: #1a73e8; }
+.psm-card.psm-danger::before { background: #ea4335; }
+.psm-card.psm-warn::before   { background: #f9ab00; }
+.psm-card.psm-safe::before   { background: #0f9d58; }
+.psm-label { font-size: 11px; color: #80868b; font-weight: 600;
+    letter-spacing: .04em; margin-bottom: 8px; }
+.psm-val { font-size: 20px; font-weight: 800; color: #1a1a2e; margin-bottom: 6px; }
+.psm-badge {
+    display: inline-block; font-size: 11px; font-weight: 700;
+    padding: 3px 10px; border-radius: 20px;
+}
+.psm-badge.b-danger { background: #fce8e6; color: #c5221f; }
+.psm-badge.b-safe   { background: #e6f4ea; color: #137333; }
+.psm-badge.b-warn   { background: #fef7e0; color: #b06000; }
+
+/* ── 타임라인 ── */
+.tl-wrap { padding: 4px 0; }
+.tl-item { display: flex; gap: 14px; padding-bottom: 24px; position: relative; }
+.tl-item:not(:last-child)::before {
+    content: ''; position: absolute; left: 10px; top: 24px; bottom: 0;
+    width: 1.5px; background: #e5e9f0;
+}
+.tl-dot {
+    width: 22px; height: 22px; border-radius: 50%;
+    flex-shrink: 0; margin-top: 1px; position: relative; z-index: 1;
+}
+.tl-dot.recent { background: #e8f0fe; border: 2px solid #1a73e8; }
+.tl-dot.recent::after {
+    content: ''; position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    width: 8px; height: 8px; border-radius: 50%; background: #1a73e8;
+}
+.tl-dot.old { background: #f8f9fa; border: 2px solid #dadce0; }
+.tl-dot.old::after {
+    content: ''; position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    width: 8px; height: 8px; border-radius: 50%; background: #bdc1c6;
+}
+.tl-body { flex: 1; }
+.tl-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.tl-date { font-size: 13px; font-weight: 700; color: #3c4043; }
+.tl-manager {
+    font-size: 11.5px; color: #5f6368;
+    background: #f1f3f4; padding: 2px 10px; border-radius: 99px;
+}
+.tl-badge-new {
+    font-size: 10px; font-weight: 700; letter-spacing: .05em;
+    background: #e8f0fe; color: #1558d0; padding: 2px 8px; border-radius: 4px;
+}
+.tl-box {
+    background: #ffffff; border: 1px solid #e5e9f0;
+    border-radius: 10px; padding: 12px 16px;
+    font-size: 13.5px; color: #1a1a2e; line-height: 1.75;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+
+/* ── 판매량 차트 라벨 ── */
+.chart-lbl { font-size: 13px; font-weight: 600; color: #5f6368; margin-bottom: 4px; }
+
+/* ── 구분선 ── */
+.divider { border: none; border-top: 1px solid #e5e9f0; margin: 0.5rem 0 1.2rem; }
+
+/* ── 2x2 그리드 카드 헤더 ── */
+.quad-hdr {
+    font-size: 14px; font-weight: 700; color: #1a1a2e;
+    margin-bottom: 10px; padding-bottom: 8px;
+    border-bottom: 1px solid #f0f3f8;
+}
+</style>
+""", unsafe_allow_html=True)
 
 
 # ─────────────────────────────────────────
@@ -31,8 +196,8 @@ def load_all_data():
     base_path      = os.path.join(os.getcwd(), 'data')  # streamlit을 프로젝트 루트에서 실행하는 한 pages/ 안에서도 항상 정확함
     interview_file = os.path.join(base_path, '면담내용.xlsx')
 
-    # 사이드바용 요약 (15만 건 원본 대신 customer_summary 뷰만 조회 - 빠르고 정확함)
-    summary_df = fetch_customer_summary()
+    # 판매량: Supabase 로드 + 한글 컬럼 매핑까지 supabase_utils.py가 전담
+    sale_df = load_sales_for_app()
 
     interview_df = pd.read_excel(interview_file, header=0)
     interview_df.columns = [str(c).strip() for c in interview_df.columns]
@@ -45,13 +210,7 @@ def load_all_data():
     interview_df = interview_df.dropna(subset=['날짜']).sort_values('날짜', ascending=False)
     interview_df['수요처'] = interview_df['수요처'].astype(str).str.strip()
 
-    return summary_df, interview_df
-
-
-@st.cache_data(ttl=600)
-def load_customer_sales(customer_name: str) -> pd.DataFrame:
-    """선택된 고객 하나만 Supabase에 직접 쿼리 (전체 fetch 안 함, 빠르고 정확함)"""
-    return load_sales_for_app(customer_name=customer_name)
+    return sale_df, interview_df
 
 
 PSM_SHEET_URL = "https://docs.google.com/spreadsheets/d/1ZwuT0NihpFzE-AxnKocIKN-DbZd-Q5fqbIvvhx6AJJg/edit?usp=sharing"
@@ -123,7 +282,7 @@ def clean_name(s: str) -> str:
 # 3. 앱 메인
 # ─────────────────────────────────────────
 try:
-    summary_df, interview_df = load_all_data()
+    sale_df, interview_df = load_all_data()
     psm_raw = load_psm_data(PSM_SHEET_URL)
     load_ok = True
 except Exception as e:
@@ -131,11 +290,17 @@ except Exception as e:
     load_ok = False
 
 if load_ok:
+    # ── 고객별 총 사용량 (사이드바 정렬용) ──
+    customer_total = (
+        sale_df.groupby('고객명')['사용량(m3)'].sum()
+        .reset_index().rename(columns={'사용량(m3)': '총사용량'})
+    )
+
     with st.sidebar:
         st.markdown("### 🔍 고객 검색")
 
-        # 업종 필터
-        biz_options = sorted(summary_df['업종'].dropna().unique().tolist())
+        # 업종 필터 (업종분류 아닌 업종 열 사용)
+        biz_options = sorted(sale_df['업종'].dropna().unique().tolist())
         sel_biz = st.selectbox(
             "업종 선택",
             options=["전체"] + biz_options,
@@ -147,12 +312,15 @@ if load_ok:
 
         # 업종 필터 적용 후 판매량 내림차순
         if sel_biz == "전체":
-            filtered_summary = summary_df
+            filtered_sale = sale_df
         else:
-            filtered_summary = summary_df[summary_df['업종'] == sel_biz]
+            filtered_sale = sale_df[sale_df['업종'] == sel_biz]
 
         filtered_customers = (
-            filtered_summary.sort_values('총사용량', ascending=False)['고객명'].tolist()
+            filtered_sale.groupby('고객명')['사용량(m3)'].sum()
+            .reset_index()
+            .sort_values('사용량(m3)', ascending=False)['고객명']
+            .tolist()
         )
 
         if not filtered_customers:
@@ -167,8 +335,7 @@ if load_ok:
             )
 
     if selected_customer:
-        # 이 고객 것만 Supabase에 직접 쿼리 (전체 fetch 후 필터링 아님 - 훨씬 빠르고 정확함)
-        cust_sale = load_customer_sales(selected_customer)
+        cust_sale = sale_df[sale_df['고객명'] == selected_customer].copy()
 
         match_key = clean_name(selected_customer)
         if len(match_key) < 3:

@@ -199,11 +199,11 @@ def fetch_sales(customer_name: str = None) -> pd.DataFrame:
     # app.py가 실제로 참조하는 컬럼만 (필요한 컬럼이 늘어나면 여기에 추가)
     SELECT_COLUMNS = (
         "contract_no,customer_name,usage_type,industry_code,industry_name,"
-        "road_address,lot_address,sales_ym,usage_m3,usage_mj"
+        "road_address,lot_address,sales_ym,usage_m3,usage_mj,facility_id"
     )
 
     client = get_client()
-    query = client.table(TABLE_NAME).select(SELECT_COLUMNS)
+    query = client.table(TABLE_NAME).select(SELECT_COLUMNS).order("id")
     if customer_name:
         query = query.eq("customer_name", customer_name)
 
@@ -224,13 +224,13 @@ def fetch_sales(customer_name: str = None) -> pd.DataFrame:
     return df
 
 
-def load_sales_for_app() -> pd.DataFrame:
+def load_sales_for_app(customer_name: str = None) -> pd.DataFrame:
     """
     app.py에서 바로 쓸 수 있는 형태로 판매량 데이터 로드.
     Supabase에서 가져온 영문 컬럼명 -> app.py가 쓰는 한글 컬럼명으로 변환 + 기본 정제까지 처리.
-    app.py는 이 함수 하나만 호출하면 됨.
+    customer_name을 지정하면 그 고객 것만 딱 쿼리 (전체 fetch보다 훨씬 빠르고 안전함).
     """
-    sale_df = fetch_sales()
+    sale_df = fetch_sales(customer_name=customer_name)
 
     sale_df = sale_df.rename(columns={
         'no_': 'No',
@@ -272,8 +272,23 @@ def load_sales_for_app() -> pd.DataFrame:
     sale_df['고객명'] = sale_df['고객명'].astype(str).str.strip()
 
     return sale_df
-    """사이드바 고객 목록용 - 고객명 unique 리스트"""
+
+
+def fetch_customer_summary() -> pd.DataFrame:
+    """
+    사이드바 고객 목록/정렬/업종필터용. 15만 건 원본 대신 customer_summary 뷰(고객당 1행)만 조회.
+    (customer_summary_view.sql을 Supabase에서 먼저 실행해둬야 함)
+    """
     client = get_client()
-    resp = client.table(TABLE_NAME).select("customer_name").execute()
-    names = sorted({r["customer_name"] for r in resp.data if r["customer_name"]})
-    return names
+    resp = client.table("customer_summary").select("*").execute()
+    df = pd.DataFrame(resp.data)
+    if df.empty:
+        return df
+    df = df.rename(columns={
+        'customer_name': '고객명',
+        'industry_code': '업종분류',
+        'industry_name': '업종',
+        'total_usage_m3': '총사용량',
+    })
+    df['고객명'] = df['고객명'].astype(str).str.strip()
+    return df
